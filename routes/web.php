@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductGalleryController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -78,7 +79,6 @@ Route::group(['middleware' => ['auth']], function () {
 
 //Admin Area
 Route::prefix('admin')
-    ->namespace('Admin')
     ->middleware(['auth', 'admin'])
     ->group(function () {
         Route::get('/', [App\Http\Controllers\Admin\DashboardController::class, 'index'])
@@ -87,6 +87,7 @@ Route::prefix('admin')
         Route::resource('user', UserController::class);
         Route::resource('product', ProductController::class);
         Route::resource('product-gallery', ProductGalleryController::class);
+        Route::resource('transaction', TransactionController::class);
     });
 
 Auth::routes();
