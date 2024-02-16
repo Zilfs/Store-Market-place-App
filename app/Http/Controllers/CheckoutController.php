@@ -13,6 +13,7 @@ use Exception;
 
 use Midtrans\Snap;
 use Midtrans\Config;
+use Midtrans\Notification;
 
 class CheckoutController extends Controller
 {
@@ -23,8 +24,8 @@ class CheckoutController extends Controller
         $user->update($request->except('total_price'));
 
         //Proses checkout
-        $code = 'STORE-' . mt_rand(000000,999999);
-        $carts = Cart::with(['product','user'])->where('users_id', Auth::user()->id)->get();
+        $code = 'STORE-' . mt_rand(000000, 999999);
+        $carts = Cart::with(['product', 'user'])->where('users_id', Auth::user()->id)->get();
 
         //Transaction create
         $transaction = Transaction::create([
@@ -37,7 +38,7 @@ class CheckoutController extends Controller
         ]);
 
         foreach ($carts as $cart) {
-            $trx = 'TRX-' . mt_rand(000000,999999);
+            $trx = 'TRX-' . mt_rand(000000, 999999);
             TransactionDetail::create([
                 'transactions_id' => $transaction->id,
                 'products_id' => $cart->product->id,
@@ -76,17 +77,56 @@ class CheckoutController extends Controller
         try {
             // Get Snap Payment Page URL
             $paymentUrl = Snap::createTransaction($midtrans)->redirect_url;
-            
+
             // Redirect to Snap Payment Page
             return redirect($paymentUrl);
-          }
-          catch (Exception $e) {
+        } catch (Exception $e) {
             echo $e->getMessage();
-          }
+        }
     }
-    
+
     public function callback(Request $request)
     {
+        // Set kofigurasi midtrans
+        Config::$serverKey = config('service.midtrnas.serverKey');
+        Config::$isProduction = config('service.midtrnas.isProduction');
+        Config::$isSanitized = config('service.midtrnas.isSanitized');
+        Config::$is3ds = config('service.midtrnas.is3ds');
 
+        // Instance midtrance notification
+        $notification = new Notification();
+
+        // Assign ke variable
+        $status = $notification->transaction_status;
+        $type = $notification->payment_type;
+        $fraud = $notification->fraud_status;
+        $order_id = $notification->order_id;
+
+        // Cari transaksi berdasarkan id
+        $transaction = Transaction::findOrFail($order_id);
+
+        // Handle notification status
+        if ($status == 'capture') {
+            if ($type == 'credit_card') {
+                if ($fraud == 'challange') {
+                    $transaction->status = 'PENDING';
+                } else {
+                    $transaction->status = 'SUCCESS';
+                }
+            }
+        } else if ($status == 'settlement') {
+            $transaction->status = 'SUCCESS';
+        } else if ($status == 'pending') {
+            $transaction->status = 'PENDING';
+        } else if ($status == 'deny') {
+            $transaction->status = 'CANCELLED';
+        } else if ($status == 'expire') {
+            $transaction->status = 'PENDING';
+        } else if ($status == 'cancel') {
+            $transaction->status = 'PENDING';
+        }
+
+        //Simpan transaksi
+        $transaction->save();
     }
 }
